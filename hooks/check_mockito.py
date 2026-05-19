@@ -3,6 +3,7 @@
 Forbidden patterns
 ------------------
 * ``from unittest.mock ...`` / ``import unittest.mock ...``
+* ``from unittest import mock`` (also when listed alongside other names)
 * ``from mock ...`` / ``import mock`` (bare PyPI ``mock`` shim)
 * ``monkeypatch.setattr(`` calls
 
@@ -31,6 +32,7 @@ from pathlib import Path
 _FORBIDDEN: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^\s*from\s+unittest\.mock\b"), "unittest.mock import"),
     (re.compile(r"^\s*import\s+unittest\.mock\b"), "unittest.mock import"),
+    (re.compile(r"^\s*from\s+unittest\s+import\s+.*\bmock\b"), "unittest.mock import"),
     (re.compile(r"^\s*from\s+mock\b"), "mock import"),
     (re.compile(r"^\s*import\s+mock\b"), "mock import"),
     (re.compile(r"\bmonkeypatch\.setattr\s*\("), "monkeypatch.setattr"),

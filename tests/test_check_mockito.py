@@ -41,6 +41,25 @@ def test_flags_import_unittest_mock() -> None:
     assert hits == [(1, "unittest.mock import")]
 
 
+def test_flags_from_unittest_import_mock() -> None:
+    hits = guard.scan_text("from unittest import mock\n")
+    assert hits == [(1, "unittest.mock import")]
+
+
+def test_flags_from_unittest_import_mock_in_list() -> None:
+    hits = guard.scan_text("from unittest import TestCase, mock\n")
+    assert hits == [(1, "unittest.mock import")]
+
+
+def test_flags_from_unittest_import_mock_aliased() -> None:
+    hits = guard.scan_text("from unittest import mock as M\n")
+    assert hits == [(1, "unittest.mock import")]
+
+
+def test_permits_from_unittest_import_testcase() -> None:
+    assert guard.scan_text("from unittest import TestCase\n") == []
+
+
 def test_flags_bare_import_mock() -> None:
     hits = guard.scan_text("import mock\n")
     assert hits == [(1, "mock import")]

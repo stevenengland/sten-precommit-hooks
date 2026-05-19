@@ -9,7 +9,7 @@ Add to your consumer repo's `.pre-commit-config.yaml`:
 
 ```yaml
 - repo: https://github.com/stevenengland/sten-precommit-hooks
-  rev: v0.1.0
+  rev: v0.1.1
   hooks:
     - id: check-mockito
     - id: check-no-basic-config
@@ -26,6 +26,7 @@ history, not passive pulls.
 **Bans** these patterns under `tests/`:
 
 - `from unittest.mock ...` / `import unittest.mock ...`
+- `from unittest import mock` (also when listed alongside other names, with or without `as` aliasing)
 - `from mock ...` / `import mock` (PyPI `mock` shim)
 - `monkeypatch.setattr(...)` calls
 
