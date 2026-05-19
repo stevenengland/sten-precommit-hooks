@@ -1,0 +1,15 @@
+- id: check-mockito
+  name: mockito-only test guard
+  description: Forbid unittest.mock / mock / monkeypatch.setattr in tests/.
+  entry: python -m hooks.check_mockito
+  language: python
+  types: [python]
+  files: ^tests/
+
+- id: check-no-basic-config
+  name: no logging.basicConfig in src/ and tests/
+  description: Forbid logging.basicConfig(...) in library and test code. tools/ is exempt.
+  entry: python -m hooks.check_no_basic_config
+  language: python
+  types: [python]
+  files: ^(src|tests)/

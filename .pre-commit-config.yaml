@@ -1,0 +1,29 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        language_version: python3.11
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        args: ["--max-line-length=100", "--extend-ignore=E203,W503"]
+
+  - repo: local
+    hooks:
+      - id: check-mockito
+        name: mockito-only test guard (dogfood)
+        entry: python -m hooks.check_mockito
+        language: system
+        types: [python]
+        files: ^tests/
+
+      - id: check-no-basic-config
+        name: no logging.basicConfig (dogfood)
+        entry: python -m hooks.check_no_basic_config
+        language: system
+        types: [python]
+        files: ^(src|tests)/
+        exclude: ^tests/test_check_no_basic_config\.py$
