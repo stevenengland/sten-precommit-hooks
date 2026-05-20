@@ -71,6 +71,16 @@ def test_allowlist_whitespace_reason_still_fails() -> None:
     assert guard.scan_text(body) == [(1, "logging.basicConfig")]
 
 
+def test_basic_config_in_trailing_comment_not_flagged() -> None:
+    body = "do_thing()  # logging.basicConfig() is banned\n"
+    assert guard.scan_text(body) == []
+
+
+def test_flags_basic_config_when_hash_is_inside_a_string() -> None:
+    hits = guard.scan_text('logging.basicConfig(format="#%(message)s")\n')
+    assert hits == [(1, "logging.basicConfig")]
+
+
 def test_reports_line_number_for_offender_among_clean_lines() -> None:
     body = (
         "import logging\n"

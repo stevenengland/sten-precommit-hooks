@@ -28,7 +28,7 @@ from __future__ import annotations
 import re
 import sys
 
-from hooks._common import run
+from hooks._common import run, strip_comment
 
 _FORBIDDEN: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^\s*from\s+unittest\.mock\b"), "unittest.mock import"),
@@ -51,12 +51,16 @@ def scan_text(text: str) -> list[tuple[int, str]]:
     """Return ``[(lineno, what), ...]`` for forbidden hits in ``text``.
 
     Pure function — exposed for unit-testing without touching the
-    filesystem. Allowlist comments on the matching line suppress the hit.
+    filesystem. Each line is scanned with its trailing ``#`` comment
+    stripped, so a forbidden token mentioned in a comment does not trip
+    the guard. The allowlist directive is still matched against the full
+    line, comment included.
     """
     hits: list[tuple[int, str]] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
+        code = strip_comment(line)
         for pattern, what in _FORBIDDEN:
-            if pattern.search(line):
+            if pattern.search(code):
                 if _ALLOWLIST.search(line):
                     break
                 hits.append((lineno, what))

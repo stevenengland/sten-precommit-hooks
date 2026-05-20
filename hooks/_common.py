@@ -3,8 +3,9 @@
 The per-guard ``scan_text`` regex layers genuinely differ, but everything
 beneath them is identical in shape: the directory walk that collects
 ``*.py`` files under the guard's scan roots, the read-text-and-scan step,
-and the argv-driven CLI loop. Extracting that layer here keeps a third
-guard from copying it a third time.
+the argv-driven CLI loop, and the trailing-comment stripper that keeps a
+``#`` comment from tripping a guard. Extracting that layer here keeps a
+third guard from copying it a third time.
 """
 
 from __future__ import annotations
@@ -22,6 +23,32 @@ _SKIP_DIR_NAMES = frozenset(
 
 def _never_exempt(_: Path) -> bool:
     return False
+
+
+def strip_comment(line: str) -> str:
+    """Return ``line`` with any trailing ``#`` comment removed.
+
+    Single- and double-quote state is tracked so a ``#`` inside a string
+    literal is not mistaken for a comment start; a backslash escapes the
+    next character while inside a quote. Triple-quoted strings spanning
+    multiple lines are out of scope for this line-based helper.
+    """
+    quote = ""
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = ""
+        elif ch in ("'", '"'):
+            quote = ch
+        elif ch == "#":
+            return line[:i]
+        i += 1
+    return line
 
 
 def iter_python_files(
@@ -58,9 +85,7 @@ def iter_python_files(
         if any(part in scan_roots for part in root.parts):
             bases.append(root)
         else:
-            bases.extend(
-                root / sub for sub in scan_roots if (root / sub).is_dir()
-            )
+            bases.extend(root / sub for sub in scan_roots if (root / sub).is_dir())
         for base in bases:
             for path in base.rglob("*.py"):
                 if _SKIP_DIR_NAMES.intersection(path.relative_to(base).parts):

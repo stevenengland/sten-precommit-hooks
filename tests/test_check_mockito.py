@@ -105,6 +105,23 @@ def test_allowlist_whitespace_reason_still_fails() -> None:
     assert guard.scan_text(body) == [(1, "monkeypatch.setattr")]
 
 
+# ── Trailing-comment edge cases ───────────────────────────────────────────────
+
+
+def test_mock_word_in_trailing_comment_not_flagged() -> None:
+    assert guard.scan_text("from unittest import TestCase  # uses mock\n") == []
+
+
+def test_setattr_in_trailing_comment_not_flagged() -> None:
+    line = "x = 1  # monkeypatch.setattr(o, 'a', 1)\n"  # mockito-allow: regex fixture
+    assert guard.scan_text(line) == []
+
+
+def test_flags_setattr_when_hash_is_inside_a_string_arg() -> None:
+    body = 'monkeypatch.setattr(d, "#k", 1)'  # mockito-allow: regex fixture
+    assert guard.scan_text(body) == [(1, "monkeypatch.setattr")]
+
+
 # ── Diagnostic format (CLI surface) ───────────────────────────────────────────
 
 

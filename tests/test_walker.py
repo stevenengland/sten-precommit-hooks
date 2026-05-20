@@ -87,9 +87,7 @@ def test_same_file_reached_twice_is_deduplicated() -> None:
         (root / "tests").mkdir()
         target = root / "tests" / "dup.py"
         target.write_text("ok\n")
-        found = _common.iter_python_files(
-            [str(root), str(target)], ("tests",)
-        )
+        found = _common.iter_python_files([str(root), str(target)], ("tests",))
     assert found == [target.resolve()]
 
 

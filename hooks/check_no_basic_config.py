@@ -29,7 +29,7 @@ import re
 import sys
 from pathlib import Path
 
-from hooks._common import run
+from hooks._common import run, strip_comment
 
 _FORBIDDEN = re.compile(r"(?<!#)\blogging\.basicConfig\s*\(")
 _ALLOWLIST = re.compile(r"#\s*basicconfig-allow:\s*\S")
@@ -44,15 +44,14 @@ def scan_text(text: str) -> list[tuple[int, str]]:
     """Return ``[(lineno, what), ...]`` for each ``logging.basicConfig(`` hit.
 
     Pure function — exposed for unit-testing without touching the
-    filesystem. Lines whose first non-whitespace character is ``#`` are
-    treated as fully commented out and skipped.
+    filesystem. Each line is scanned with its trailing ``#`` comment
+    stripped, so a fully or partly commented ``logging.basicConfig(`` does
+    not trip the guard; the allowlist directive is still matched against
+    the full line.
     """
     hits: list[tuple[int, str]] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
-        stripped = line.lstrip()
-        if stripped.startswith("#"):
-            continue
-        if _FORBIDDEN.search(line):
+        if _FORBIDDEN.search(strip_comment(line)):
             if _ALLOWLIST.search(line):
                 continue
             hits.append((lineno, "logging.basicConfig"))
