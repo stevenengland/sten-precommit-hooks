@@ -29,6 +29,8 @@ import re
 import sys
 from pathlib import Path
 
+from hooks._common import run
+
 _FORBIDDEN = re.compile(r"(?<!#)\blogging\.basicConfig\s*\(")
 _ALLOWLIST = re.compile(r"#\s*basicconfig-allow:\s*\S")
 _EXEMPT_SEGMENT = "tools"
@@ -57,68 +59,19 @@ def scan_text(text: str) -> list[tuple[int, str]]:
     return hits
 
 
-_SCAN_ROOTS = ("src", "tests")
-_SKIP_DIR_NAMES = frozenset(
-    {"test_temp", "__pycache__", ".mypy_cache", ".pytest_cache"}
-)
-
-
 def _is_exempt(path: Path) -> bool:
     return _EXEMPT_SEGMENT in path.resolve().parts
 
 
-def _iter_target_files(roots: list[str]) -> list[Path]:
-    """Return ``*.py`` files under ``src/``+``tests/`` reachable from ``roots``.
-
-    Mirrors :func:`check_mockito._iter_test_files`: file roots pass straight
-    through; directory roots either themselves live under ``src/``/``tests/``
-    (walked directly) or are projects whose ``src/``/``tests/`` subdirs are
-    walked. ``tools/`` paths are filtered out at the file level.
-    """
-    files: list[Path] = []
-    seen: set[Path] = set()
-    for raw in roots:
-        root = Path(raw).resolve()
-        if root.is_file():
-            if root.suffix == ".py" and root not in seen and not _is_exempt(root):
-                files.append(root)
-                seen.add(root)
-            continue
-        if not root.is_dir():
-            continue
-        bases: list[Path] = []
-        if any(part in _SCAN_ROOTS for part in root.parts):
-            bases.append(root)
-        else:
-            bases.extend(root / sub for sub in _SCAN_ROOTS if (root / sub).is_dir())
-        for base in bases:
-            for p in base.rglob("*.py"):
-                if _SKIP_DIR_NAMES.intersection(p.relative_to(base).parts):
-                    continue
-                if p in seen or _is_exempt(p):
-                    continue
-                files.append(p)
-                seen.add(p)
-    return files
-
-
-def _scan(path: Path) -> list[tuple[int, str]]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return []
-    return scan_text(text)
-
-
 def main(argv: list[str]) -> int:
-    roots = argv or ["."]
-    failures = 0
-    for path in _iter_target_files(roots):
-        for lineno, what in _scan(path):
-            print(f"{path}:{lineno}: forbidden basicConfig call ({what})")
-            print(_HINT)
-            failures += 1
-    return 1 if failures else 0
+    return run(
+        argv,
+        scan_roots=("src", "tests"),
+        scan_text=scan_text,
+        diagnostic="forbidden basicConfig call",
+        hint=_HINT,
+        exempt=_is_exempt,
+    )
 
 
 if __name__ == "__main__":

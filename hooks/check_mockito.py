@@ -27,7 +27,8 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
+
+from hooks._common import run
 
 _FORBIDDEN: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^\s*from\s+unittest\.mock\b"), "unittest.mock import"),
@@ -40,42 +41,10 @@ _FORBIDDEN: tuple[tuple[re.Pattern[str], str], ...] = (
 
 _ALLOWLIST = re.compile(r"#\s*mockito-allow:\s*\S")
 
-_SKIP_DIR_NAMES = frozenset(
-    {"test_temp", "__pycache__", ".mypy_cache", ".pytest_cache"}
-)
 _HINT = (
     "  hint: use when(real_module).attr(...).thenReturn(...) "
     "or add `# mockito-allow: <reason>`"
 )
-
-
-def _iter_test_files(roots: list[str]) -> list[Path]:
-    """Return every ``*.py`` file under ``tests/`` reachable from any root."""
-    files: list[Path] = []
-    seen: set[Path] = set()
-    for raw in roots:
-        root = Path(raw).resolve()
-        if root.is_file():
-            if root.suffix == ".py" and "tests" in root.parts and root not in seen:
-                files.append(root)
-                seen.add(root)
-            continue
-        if not root.is_dir():
-            continue
-        if "tests" in root.parts:
-            base = root
-        else:
-            base = root / "tests"
-            if not base.is_dir():
-                continue
-        for p in base.rglob("*.py"):
-            rel_parts = p.relative_to(base).parts
-            if _SKIP_DIR_NAMES.intersection(rel_parts):
-                continue
-            if p not in seen:
-                files.append(p)
-                seen.add(p)
-    return files
 
 
 def scan_text(text: str) -> list[tuple[int, str]]:
@@ -95,23 +64,14 @@ def scan_text(text: str) -> list[tuple[int, str]]:
     return hits
 
 
-def _scan(path: Path) -> list[tuple[int, str]]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return []
-    return scan_text(text)
-
-
 def main(argv: list[str]) -> int:
-    roots = argv or ["."]
-    failures = 0
-    for path in _iter_test_files(roots):
-        for lineno, what in _scan(path):
-            print(f"{path}:{lineno}: forbidden mocking pattern ({what})")
-            print(_HINT)
-            failures += 1
-    return 1 if failures else 0
+    return run(
+        argv,
+        scan_roots=("tests",),
+        scan_text=scan_text,
+        diagnostic="forbidden mocking pattern",
+        hint=_HINT,
+    )
 
 
 if __name__ == "__main__":
