@@ -103,15 +103,19 @@ from _thread import start_new_thread  # private-import-allow: stdlib need
 
 Empty or whitespace-only reasons after the `:` still fail.
 
-**`--allow PREFIX`** (repeatable): skip any import whose module path
-starts with `PREFIX.`. Use this to whitelist your own package's
-intra-package absolute imports:
+**`--allow PREFIX`** (repeatable): permit own-package private imports
+**only in files under `src/`**. Tests always get the strict version —
+they must exercise the public API. Third-party private imports are never
+allowed regardless of this flag.
 
 ```yaml
 hooks:
   - id: check-no-private-import
     args: ["--allow", "mypackage"]
 ```
+
+With the above, `from mypackage._internal import X` is allowed in
+`src/mypackage/app.py` but forbidden in `tests/test_app.py`.
 
 ## Conventions for placement in this repo
 

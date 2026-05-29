@@ -21,8 +21,6 @@ Flagged patterns
   ``import __main__``) — these are public by convention.
 * Private *names* from a public module (``from pkg import _helper``) —
   that is a name-level concern, not a module-boundary violation.
-* Imports whose module path starts with an ``--allow``-listed prefix —
-  use this to whitelist your own package's intra-package absolute imports.
 
 Escape hatch
 ~~~~~~~~~~~~
@@ -34,9 +32,14 @@ Empty or whitespace-only reasons after ``:`` still fail.
 
 CLI options
 ~~~~~~~~~~~
-``--allow PREFIX`` (repeatable): skip any import whose module path starts
-with ``PREFIX.``. Example: ``--allow mypackage`` permits
-``from mypackage._internal import X``.
+``--allow PREFIX`` (repeatable): permit own-package private imports
+**only in files under ``src/``**. Tests always get the strict version —
+they must exercise the public API. Third-party private imports are never
+allowed regardless of this flag.
+
+Example: ``--allow mypackage`` permits
+``from mypackage._internal import X`` in ``src/mypackage/app.py`` but
+still forbids it in ``tests/test_app.py``.
 
 Diagnostic format::
 
@@ -51,8 +54,9 @@ from __future__ import annotations
 
 import re
 import sys
+from pathlib import Path
 
-from hooks._common import run, strip_comment
+from hooks._common import iter_python_files, strip_comment
 
 _FROM_IMPORT = re.compile(r"^\s*from\s+([a-zA-Z_]\w*(?:\.\w+)*)\s+import\b")
 _BARE_IMPORT = re.compile(r"^\s*import\s+([a-zA-Z_]\w*(?:\.\w+)*)")
@@ -61,6 +65,8 @@ _ALLOWLIST = re.compile(r"#\s*private-import-allow:\s*\S")
 _HINT = (
     "  hint: import from the public API " "or add `# private-import-allow: <reason>`"
 )
+
+_SCAN_ROOTS = ("src", "tests")
 
 
 def _has_private_segment(module_path: str) -> str | None:
@@ -83,6 +89,11 @@ def _is_allowed(module_path: str, allowed_prefixes: tuple[str, ...]) -> bool:
     return False
 
 
+def _is_under_src(path: Path) -> bool:
+    """Return True if the resolved path contains a ``src`` segment."""
+    return "src" in path.resolve().parts
+
+
 def scan_text(
     text: str, *, allowed_prefixes: tuple[str, ...] = ()
 ) -> list[tuple[int, str]]:
@@ -93,6 +104,9 @@ def scan_text(
     stripped so a forbidden import mentioned in a comment does not trip
     the guard; the allowlist directive is still matched against the full
     line.
+
+    ``allowed_prefixes`` are only meant to be passed for source files,
+    never for test files.
     """
     hits: list[tuple[int, str]] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
@@ -110,7 +124,7 @@ def scan_text(
         if mod_path is None:
             continue
 
-        if _is_allowed(mod_path, allowed_prefixes):
+        if allowed_prefixes and _is_allowed(mod_path, allowed_prefixes):
             continue
 
         priv = _has_private_segment(mod_path)
@@ -143,17 +157,25 @@ def _parse_args(argv: list[str]) -> tuple[tuple[str, ...], list[str]]:
 
 def main(argv: list[str]) -> int:
     allowed_prefixes, files = _parse_args(argv)
+    roots = files or ["."]
+    failures = 0
 
-    def _scan_text(text: str) -> list[tuple[int, str]]:
-        return scan_text(text, allowed_prefixes=allowed_prefixes)
+    for path in iter_python_files(roots, _SCAN_ROOTS):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
 
-    return run(
-        files,
-        scan_roots=("src", "tests"),
-        scan_text=_scan_text,
-        diagnostic="forbidden private-module import",
-        hint=_HINT,
-    )
+        # --allow only applies to src/ files; tests are always strict.
+        prefixes = allowed_prefixes if _is_under_src(path) else ()
+        hits = scan_text(text, allowed_prefixes=prefixes)
+
+        for lineno, what in hits:
+            print(f"{path}:{lineno}: forbidden private-module import ({what})")
+            print(_HINT)
+            failures += 1
+
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

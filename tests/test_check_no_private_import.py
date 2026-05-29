@@ -282,3 +282,44 @@ def test_main_allow_equals_syntax() -> None:
         f.write_text("from mypkg._auth import login\n")
         rc = guard.main(["--allow=mypkg", str(f)])
     assert rc == 0
+
+
+def test_main_allow_does_not_apply_in_tests() -> None:
+    """--allow only applies to src/; tests must use the public API."""
+    with tempfile.TemporaryDirectory(dir="/tmp") as raw:
+        root = Path(raw)
+        f = root / "tests" / "test_x.py"
+        f.parent.mkdir(parents=True)
+        f.write_text("from mypkg._internal import Helper\n")
+        rc = guard.main(["--allow", "mypkg", str(f)])
+    assert rc != 0
+
+
+def test_main_allow_applies_in_src_not_tests_same_import() -> None:
+    """Same import is allowed in src/ but forbidden in tests/."""
+    with tempfile.TemporaryDirectory(dir="/tmp") as raw:
+        root = Path(raw)
+        src_f = root / "src" / "mypkg" / "mod.py"
+        src_f.parent.mkdir(parents=True)
+        src_f.write_text("from mypkg._internal import Helper\n")
+        test_f = root / "tests" / "test_mod.py"
+        test_f.parent.mkdir(parents=True)
+        test_f.write_text("from mypkg._internal import Helper\n")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = guard.main(["--allow", "mypkg", str(root)])
+    assert rc != 0
+    out = buf.getvalue()
+    assert "tests/test_mod.py" in out
+    assert "src/mypkg/mod.py" not in out
+
+
+def test_main_third_party_private_import_always_forbidden() -> None:
+    """Third-party private imports are forbidden even with --allow."""
+    with tempfile.TemporaryDirectory(dir="/tmp") as raw:
+        root = Path(raw)
+        f = root / "src" / "mypkg" / "mod.py"
+        f.parent.mkdir(parents=True)
+        f.write_text("from other_lib._internal import X\n")
+        rc = guard.main(["--allow", "mypkg", str(f)])
+    assert rc != 0
