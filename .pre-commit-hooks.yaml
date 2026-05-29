@@ -13,3 +13,11 @@
   language: python
   types: [python]
   files: ^(src|tests)/
+
+- id: check-no-private-import
+  name: no imports from private (_-prefixed) modules
+  description: Forbid absolute imports from _-prefixed submodules in src/ and tests/.
+  entry: python -m hooks.check_no_private_import
+  language: python
+  types: [python]
+  files: ^(src|tests)/

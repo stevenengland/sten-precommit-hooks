@@ -13,6 +13,7 @@ Add to your consumer repo's `.pre-commit-config.yaml`:
   hooks:
     - id: check-mockito
     - id: check-no-basic-config
+    - id: check-no-private-import
 ```
 
 Always pin a version tag. Pinning to a branch (`main`, `HEAD`) is a
@@ -64,6 +65,40 @@ suite, and breaks `caplog` assertions.
 
 ```python
 logging.basicConfig(level=logging.INFO)  # basicconfig-allow: <reason>
+```
+
+Empty or whitespace-only reasons after the `:` still fail.
+
+### `check-no-private-import`
+
+**Bans** absolute imports from `_`-prefixed (private) submodules under
+`src/` and `tests/`.
+
+Flagged patterns:
+
+- `from pkg._internal import X`
+- `from pkg._priv.sub import X`
+- `from _private_lib import util` (top-level private package)
+- `import pkg._internal`
+
+**Not** flagged:
+
+- Relative imports (`from ._internal import X`) — intra-package
+  references to private siblings are legitimate.
+- Dunder modules (`from __future__ import annotations`,
+  `import __main__`) — these are public by convention.
+- Private *names* from a public module (`from pkg import _helper`) —
+  that is a name-level concern, not a module-boundary violation.
+
+**Why.** A single-underscore prefix on a module name signals an
+implementation detail not covered by the public API contract. Importing
+from such paths creates brittle coupling to internals that may change
+or disappear without notice in a patch release.
+
+**Escape hatch.** Trailing comment with a non-empty reason:
+
+```python
+from _thread import start_new_thread  # private-import-allow: stdlib need
 ```
 
 Empty or whitespace-only reasons after the `:` still fail.
