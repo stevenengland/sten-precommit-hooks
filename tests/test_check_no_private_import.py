@@ -162,6 +162,36 @@ def test_private_segment_in_string_not_flagged() -> None:
     assert guard.scan_text(body) == []
 
 
+# ── --allow prefix behaviour ─────────────────────────────────────────────────
+
+
+def test_allowed_prefix_skips_matching_import() -> None:
+    body = "from mypackage._internal import Helper\n"
+    assert guard.scan_text(body, allowed_prefixes=("mypackage",)) == []
+
+
+def test_allowed_prefix_does_not_skip_other_packages() -> None:
+    body = "from other._internal import Helper\n"
+    hits = guard.scan_text(body, allowed_prefixes=("mypackage",))
+    assert hits == [(1, "private module: _internal")]
+
+
+def test_allowed_prefix_matches_exact_package_not_substring() -> None:
+    body = "from mypackage_extra._priv import X\n"
+    hits = guard.scan_text(body, allowed_prefixes=("mypackage",))
+    assert hits == [(1, "private module: _priv")]
+
+
+def test_allowed_prefix_works_with_deep_submodule() -> None:
+    body = "from mypackage._auth._providers import X\n"
+    assert guard.scan_text(body, allowed_prefixes=("mypackage",)) == []
+
+
+def test_multiple_allowed_prefixes() -> None:
+    body = "from pkg_a._priv import X\nfrom pkg_b._priv import Y\n"
+    assert guard.scan_text(body, allowed_prefixes=("pkg_a", "pkg_b")) == []
+
+
 # ── CLI entrypoint (on-disk integration) ─────────────────────────────────────
 
 
@@ -222,3 +252,33 @@ def test_main_walks_src_and_tests_when_given_directory_root() -> None:
     assert rc != 0
     assert "src/pkg/lib.py" in out
     assert "tests/test_x.py" in out
+
+
+def test_main_allow_flag_skips_own_package() -> None:
+    with tempfile.TemporaryDirectory(dir="/tmp") as raw:
+        root = Path(raw)
+        f = root / "src" / "mypkg" / "mod.py"
+        f.parent.mkdir(parents=True)
+        f.write_text("from mypkg._internal import Helper\n")
+        rc = guard.main(["--allow", "mypkg", str(f)])
+    assert rc == 0
+
+
+def test_main_allow_flag_still_flags_other_packages() -> None:
+    with tempfile.TemporaryDirectory(dir="/tmp") as raw:
+        root = Path(raw)
+        f = root / "src" / "mypkg" / "mod.py"
+        f.parent.mkdir(parents=True)
+        f.write_text("from other._priv import X\n")
+        rc = guard.main(["--allow", "mypkg", str(f)])
+    assert rc != 0
+
+
+def test_main_allow_equals_syntax() -> None:
+    with tempfile.TemporaryDirectory(dir="/tmp") as raw:
+        root = Path(raw)
+        f = root / "src" / "mypkg" / "mod.py"
+        f.parent.mkdir(parents=True)
+        f.write_text("from mypkg._auth import login\n")
+        rc = guard.main(["--allow=mypkg", str(f)])
+    assert rc == 0
