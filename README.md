@@ -103,6 +103,16 @@ from _thread import start_new_thread  # private-import-allow: stdlib need
 
 Empty or whitespace-only reasons after the `:` still fail.
 
+**`--allow PREFIX`** (repeatable): skip any import whose module path
+starts with `PREFIX.`. Use this to whitelist your own package's
+intra-package absolute imports:
+
+```yaml
+hooks:
+  - id: check-no-private-import
+    args: ["--allow", "mypackage"]
+```
+
 ## Conventions for placement in this repo
 
 A guard belongs here iff:

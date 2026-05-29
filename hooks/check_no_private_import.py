@@ -21,6 +21,8 @@ Flagged patterns
   ``import __main__``) — these are public by convention.
 * Private *names* from a public module (``from pkg import _helper``) —
   that is a name-level concern, not a module-boundary violation.
+* Imports whose module path starts with an ``--allow``-listed prefix —
+  use this to whitelist your own package's intra-package absolute imports.
 
 Escape hatch
 ~~~~~~~~~~~~
@@ -29,6 +31,12 @@ Trailing comment with a non-empty reason on the offending line::
     from _thread import start_new_thread  # private-import-allow: stdlib need
 
 Empty or whitespace-only reasons after ``:`` still fail.
+
+CLI options
+~~~~~~~~~~~
+``--allow PREFIX`` (repeatable): skip any import whose module path starts
+with ``PREFIX.``. Example: ``--allow mypackage`` permits
+``from mypackage._internal import X``.
 
 Diagnostic format::
 
@@ -67,7 +75,17 @@ def _has_private_segment(module_path: str) -> str | None:
     return None
 
 
-def scan_text(text: str) -> list[tuple[int, str]]:
+def _is_allowed(module_path: str, allowed_prefixes: tuple[str, ...]) -> bool:
+    """Return True if ``module_path`` starts with any allowed prefix."""
+    for prefix in allowed_prefixes:
+        if module_path == prefix or module_path.startswith(prefix + "."):
+            return True
+    return False
+
+
+def scan_text(
+    text: str, *, allowed_prefixes: tuple[str, ...] = ()
+) -> list[tuple[int, str]]:
     """Return ``[(lineno, what), ...]`` for each private-module import hit.
 
     Pure function — exposed for unit-testing without touching the
@@ -92,6 +110,9 @@ def scan_text(text: str) -> list[tuple[int, str]]:
         if mod_path is None:
             continue
 
+        if _is_allowed(mod_path, allowed_prefixes):
+            continue
+
         priv = _has_private_segment(mod_path)
         if priv is None:
             continue
@@ -101,11 +122,35 @@ def scan_text(text: str) -> list[tuple[int, str]]:
     return hits
 
 
+def _parse_args(argv: list[str]) -> tuple[tuple[str, ...], list[str]]:
+    """Split ``--allow PREFIX`` pairs from file paths."""
+    allowed: list[str] = []
+    files: list[str] = []
+    it = iter(argv)
+    for arg in it:
+        if arg == "--allow":
+            try:
+                allowed.append(next(it))
+            except StopIteration:
+                print("error: --allow requires a value", file=sys.stderr)
+                sys.exit(2)
+        elif arg.startswith("--allow="):
+            allowed.append(arg[len("--allow=") :])
+        else:
+            files.append(arg)
+    return tuple(allowed), files
+
+
 def main(argv: list[str]) -> int:
+    allowed_prefixes, files = _parse_args(argv)
+
+    def _scan_text(text: str) -> list[tuple[int, str]]:
+        return scan_text(text, allowed_prefixes=allowed_prefixes)
+
     return run(
-        argv,
+        files,
         scan_roots=("src", "tests"),
-        scan_text=scan_text,
+        scan_text=_scan_text,
         diagnostic="forbidden private-module import",
         hint=_HINT,
     )
