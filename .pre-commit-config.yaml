@@ -27,3 +27,11 @@ repos:
         types: [python]
         files: ^(src|tests)/
         exclude: ^tests/test_check_no_basic_config\.py$
+
+      - id: check-no-private-import
+        name: no private-module imports (dogfood)
+        entry: python -m hooks.check_no_private_import
+        language: system
+        types: [python]
+        files: ^(src|tests)/
+        exclude: ^tests/test_check_no_private_import\.py$

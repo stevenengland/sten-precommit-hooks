@@ -203,9 +203,7 @@ def test_main_exits_zero_with_allowlisted_import() -> None:
         root = Path(raw)
         allowed = root / "src" / "compat.py"
         allowed.parent.mkdir(parents=True)
-        allowed.write_text(
-            "from _thread import lock  # private-import-allow: stdlib\n"
-        )
+        allowed.write_text("from _thread import lock  # private-import-allow: stdlib\n")
         rc = guard.main([str(allowed)])
     assert rc == 0
 
@@ -214,9 +212,7 @@ def test_main_walks_src_and_tests_when_given_directory_root() -> None:
     with tempfile.TemporaryDirectory(dir="/tmp") as raw:
         root = Path(raw)
         (root / "src" / "pkg").mkdir(parents=True)
-        (root / "src" / "pkg" / "lib.py").write_text(
-            "from sdk._internal import run\n"
-        )
+        (root / "src" / "pkg" / "lib.py").write_text("from sdk._internal import run\n")
         (root / "tests").mkdir()
         (root / "tests" / "test_x.py").write_text("import lib._priv\n")
         buf = io.StringIO()

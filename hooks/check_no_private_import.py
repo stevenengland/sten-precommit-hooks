@@ -51,8 +51,7 @@ _BARE_IMPORT = re.compile(r"^\s*import\s+([a-zA-Z_]\w*(?:\.\w+)*)")
 _ALLOWLIST = re.compile(r"#\s*private-import-allow:\s*\S")
 
 _HINT = (
-    "  hint: import from the public API "
-    "or add `# private-import-allow: <reason>`"
+    "  hint: import from the public API " "or add `# private-import-allow: <reason>`"
 )
 
 
